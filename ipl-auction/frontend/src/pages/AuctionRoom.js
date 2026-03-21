@@ -29,34 +29,6 @@ export default function AuctionRoom() {
   const socketRef = useRef(null);
   const chatEndRef = useRef(null);
 
-
-
-
-
-
-const socket = io("http://localhost:5000");
-
-useEffect(() => {
-  socket.emit("joinRoom", "room1");
-
-  socket.on("roomUsers", (data) => {
-    console.log(data);
-  });
-
-}, []);
-
-
-
-
-
-
-
-
-
-
-
-
-
   // Initialize socket
   useEffect(() => {
     socketRef.current = io(SOCKET_URL, { transports: ['websocket'], withCredentials: true });
@@ -162,11 +134,23 @@ useEffect(() => {
     }
   };
 
-  const sendChat = () => {
-    if (!chatInput.trim()) return;
-    socketRef.current.emit('chat:message', { roomId, message: chatInput, userName: user.name, role: user.role });
-    setChatInput('');
-  };
+  const exportExcel = async () => {
+    try {
+      const api = getApi();
+      const response = await api.get(`/export/auction/${roomId}/excel`, {
+        responseType: 'blob'
+      });
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `auction_report_${Date.now()}.xlsx`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+    } catch (err) {
+      toast.error('Export failed!');
+    }
+};
 
   const exportExcel = () => {
     const url = `${process.env.REACT_APP_API_URL || 'http://localhost:5000/api'}/export/auction/${roomId}/excel`;
@@ -178,6 +162,13 @@ useEffect(() => {
   const unsoldPlayers = players.filter(p => p.status === 'unsold');
 
   const incrementValues = [5, 10, 20, 50, 100];
+
+  // Fix photo URL - handle both uploaded files and external URLs
+  const getPhotoSrc = (photo) => {
+    if (!photo) return null;
+    if (photo.startsWith("http")) return photo;
+    return "http://localhost:5000" + photo;
+  };
 
   if (loading) return (
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '60vh' }}>
@@ -233,7 +224,7 @@ useEffect(() => {
                       display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '48px'
                     }}>
                       {currentAuction.player.photo
-                        ? <img src={`http://localhost:5000${currentAuction.player.photo}`} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                        ? <img src={getPhotoSrc(currentAuction.player.photo)} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                         : '🏏'}
                     </div>
                     <div style={{ flex: 1 }}>
@@ -328,7 +319,7 @@ useEffect(() => {
                       <div key={player._id} className="card" style={{ cursor: 'pointer', padding: '12px' }} onClick={() => startAuction(player._id)}>
                         <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
                           <div style={{ width: 40, height: 40, borderRadius: '8px', background: 'var(--bg-secondary)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '18px', overflow: 'hidden', flexShrink: 0 }}>
-                            {player.photo ? <img src={`http://localhost:5000${player.photo}`} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : '🏏'}
+                            {player.photo ? <img src={getPhotoSrc(player.photo)} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : '🏏'}
                           </div>
                           <div>
                             <div style={{ fontWeight: '600', fontSize: '13px' }}>{player.name}</div>
@@ -378,7 +369,7 @@ useEffect(() => {
                         <td>
                           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                             <div style={{ width: 32, height: 32, borderRadius: '50%', background: 'var(--bg-secondary)', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', fontSize: '14px', flexShrink: 0 }}>
-                              {p.photo ? <img src={`http://localhost:5000${p.photo}`} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : '🏏'}
+                              {p.photo ? <img src={getPhotoSrc(p.photo)} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : '🏏'}
                             </div>
                             <span style={{ fontSize: '13px', fontWeight: '500' }}>{p.name}</span>
                           </div>
@@ -405,7 +396,7 @@ useEffect(() => {
                   <div key={team._id} className="card" style={{ borderLeft: `4px solid ${team.primaryColor}` }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '12px' }}>
                       <div style={{ width: 40, height: 40, borderRadius: '8px', background: team.primaryColor, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'Bebas Neue', overflow: 'hidden' }}>
-                        {team.logo ? <img src={`http://localhost:5000${team.logo}`} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : team.shortName}
+                        {team.logo ? <img src={getPhotoSrc(team.logo)} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : team.shortName}
                       </div>
                       <div>
                         <div style={{ fontFamily: 'Rajdhani', fontWeight: '700', fontSize: '16px' }}>{team.name}</div>

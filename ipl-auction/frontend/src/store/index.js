@@ -34,13 +34,20 @@ export const useAuthStore = create((set, get) => ({
   isAdmin: () => get().user?.role === 'admin',
 }));
 
-// Get axios instance with auth header
 export const getApi = () => {
-  const token = localStorage.getItem('token');
-  return axios.create({
-    baseURL: API,
-    headers: { Authorization: `Bearer ${token}` },
+  const api = axios.create({
+    baseURL: API
   });
+
+  api.interceptors.request.use((config) => {
+    const token = localStorage.getItem("token");
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+    return config;
+  });
+
+  return api;
 };
 
 // Theme store
