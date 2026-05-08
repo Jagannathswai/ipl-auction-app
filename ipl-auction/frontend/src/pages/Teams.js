@@ -1,3 +1,4 @@
+
 // import React, { useEffect, useState } from 'react';
 // import { getApi, useAuthStore } from '../store';
 // import toast from 'react-hot-toast';
@@ -230,7 +231,7 @@
 //                 <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '4px', textAlign: 'right' }}>{pct}% used</div>
 //               </div>
 
-//               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+//               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
 //                 <div style={{ display: 'flex', alignItems: 'center', gap: '4px', color: 'var(--text-secondary)', fontSize: '13px' }}>
 //                   <MdPeople size={14} /> {team.players?.length || 0} / {team.maxPlayers}
 //                 </div>
@@ -241,6 +242,34 @@
 //                   <span>WK: {team.stats?.wicketKeepers || 0}</span>
 //                 </div>
 //               </div>
+
+//               {/* Purchased Players */}
+//               {team.players?.length > 0 && (
+//                 <div style={{ borderTop: '1px solid var(--border)', paddingTop: '12px' }}>
+//                   <div style={{ fontSize: '11px', color: 'var(--text-muted)', fontFamily: 'Rajdhani', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '8px' }}>
+//                     🏏 Purchased Players
+//                   </div>
+//                   <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', maxHeight: '180px', overflowY: 'auto' }}>
+//                     {team.players.map((player, i) => {
+//                       const photoSrc = player.photo ? (player.photo.startsWith('http') ? player.photo : 'http://localhost:5000' + player.photo) : null;
+//                       return (
+//                         <div key={player._id || i} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '6px 10px', background: 'var(--bg-secondary)', borderRadius: '8px' }}>
+//                           <div style={{ width: 28, height: 28, borderRadius: '50%', background: 'var(--bg-card)', overflow: 'hidden', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px' }}>
+//                             {photoSrc ? <img src={photoSrc} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} onError={e => e.target.style.display='none'} /> : '🏏'}
+//                           </div>
+//                           <div style={{ flex: 1, minWidth: 0 }}>
+//                             <div style={{ fontSize: '12px', fontWeight: '600', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{player.name}</div>
+//                             <div style={{ fontSize: '10px', color: 'var(--text-muted)' }}>{player.role}</div>
+//                           </div>
+//                           <div style={{ fontSize: '11px', fontFamily: 'Rajdhani', fontWeight: '700', color: 'var(--accent-green)', flexShrink: 0 }}>
+//                             ₹{player.soldPrice}L
+//                           </div>
+//                         </div>
+//                       );
+//                     })}
+//                   </div>
+//                 </div>
+//               )}
 //             </div>
 //           );
 //         })}
@@ -392,6 +421,7 @@
 //     </div>
 //   );
 // }
+
 import React, { useEffect, useState } from 'react';
 import { getApi, useAuthStore } from '../store';
 import toast from 'react-hot-toast';
@@ -416,16 +446,23 @@ export default function Teams() {
   const [logoPreview, setLogoPreview] = useState(null);
   const [saving, setSaving] = useState(false);
   const [showPass, setShowPass] = useState(false);
+  const [showManualAssign, setShowManualAssign] = useState(false);
+  const [manualAssignTeam, setManualAssignTeam] = useState(null);
+  const [allPlayers, setAllPlayers] = useState([]);
+  const [manualPrice, setManualPrice] = useState('');
+  const [selectedPlayerId, setSelectedPlayerId] = useState('');
 
   const fetchData = async () => {
     try {
       const api = getApi();
-      const [teamsRes, usersRes] = await Promise.all([
+      const [teamsRes, usersRes, playersRes] = await Promise.all([
         api.get('/teams'),
-        isAdmin ? api.get('/auth/users') : Promise.resolve({ data: { users: [] } })
+        isAdmin ? api.get('/auth/users') : Promise.resolve({ data: { users: [] } }),
+        api.get('/players')
       ]);
       setTeams(teamsRes.data.teams || []);
       setUsers(usersRes.data.users?.filter(u => u.role === 'team_owner') || []);
+      setAllPlayers(playersRes.data.players?.filter(p => p.status !== 'sold') || []);
     } catch (err) {
       toast.error('Failed to load teams');
     } finally {
@@ -571,8 +608,8 @@ export default function Teams() {
             <p style={{ fontFamily: 'Rajdhani', textTransform: 'uppercase', marginTop: '8px' }}>No teams yet</p>
           </div>
         ) : teams.map(team => {
-          const spent = team.purse - team.purseRemaining;
-          const pct = Math.round((spent / team.purse) * 100);
+          const spent = Math.max(0, team.purse - team.purseRemaining);
+          const pct = team.purse > 0 ? Math.round((spent / team.purse) * 100) : 0;
           return (
             <div key={team._id} className="card" style={{ borderTop: '4px solid ' + team.primaryColor }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '16px' }}>
@@ -614,14 +651,18 @@ export default function Teams() {
 
               {/* Purse */}
               <div style={{ marginBottom: '8px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
+                  <span style={{ fontSize: '11px', color: 'var(--text-muted)', fontFamily: 'Rajdhani', textTransform: 'uppercase' }}>PURSE SPENT</span>
+                  <span style={{ fontSize: '12px', fontFamily: 'Rajdhani', fontWeight: '700', color: 'var(--accent-red)' }}>₹{spent}L spent</span>
+                </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px' }}>
-                  <span style={{ fontSize: '12px', color: 'var(--text-muted)', fontFamily: 'Rajdhani' }}>PURSE USED</span>
-                  <span style={{ fontSize: '12px', fontFamily: 'Rajdhani', fontWeight: '700', color: 'var(--accent-gold)' }}>₹{team.purseRemaining}L / ₹{team.purse}L</span>
+                  <span style={{ fontSize: '11px', color: 'var(--text-muted)', fontFamily: 'Rajdhani', textTransform: 'uppercase' }}>BALANCE</span>
+                  <span style={{ fontSize: '12px', fontFamily: 'Rajdhani', fontWeight: '700', color: 'var(--accent-green)' }}>₹{team.purseRemaining}L / ₹{team.purse}L</span>
                 </div>
                 <div style={{ background: 'var(--bg-secondary)', borderRadius: '4px', height: '6px', overflow: 'hidden' }}>
-                  <div style={{ width: pct + '%', height: '100%', background: 'linear-gradient(90deg, ' + team.primaryColor + ', ' + team.secondaryColor + ')', borderRadius: '4px', transition: 'width 0.5s' }} />
+                  <div style={{ width: Math.min(pct, 100) + '%', height: '100%', background: pct > 90 ? 'var(--accent-red)' : pct > 70 ? '#ff8c00' : 'linear-gradient(90deg, ' + team.primaryColor + ', ' + team.secondaryColor + ')', borderRadius: '4px', transition: 'width 0.5s' }} />
                 </div>
-                <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '4px', textAlign: 'right' }}>{pct}% used</div>
+                <div style={{ fontSize: '11px', color: pct > 90 ? 'var(--accent-red)' : 'var(--text-muted)', marginTop: '4px', textAlign: 'right' }}>{Math.min(pct,100)}% used</div>
               </div>
 
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
@@ -635,6 +676,16 @@ export default function Teams() {
                   <span>WK: {team.stats?.wicketKeepers || 0}</span>
                 </div>
               </div>
+
+              {/* Manual assign player button */}
+              {isAdmin && (
+                <div style={{ marginBottom: '10px' }}>
+                  <button className="btn btn-ghost" style={{ fontSize: '11px', padding: '5px 10px', width: '100%' }}
+                    onClick={() => { setManualAssignTeam(team); setShowManualAssign(true); }}>
+                    ➕ Manually Assign Player
+                  </button>
+                </div>
+              )}
 
               {/* Purchased Players */}
               {team.players?.length > 0 && (
@@ -807,6 +858,54 @@ export default function Teams() {
                 toast.success('Credentials copied!');
               }}>Copy Credentials</button>
               <button className="btn btn-primary" onClick={() => setShowCredentials(null)}>Done ✓</button>
+            </div>
+          </div>
+        </div>
+      )}
+    {/* Manual Player Assign Modal */}
+      {showManualAssign && manualAssignTeam && (
+        <div className="modal-overlay" onClick={e => e.target === e.currentTarget && setShowManualAssign(false)}>
+          <div className="modal" style={{ maxWidth: '460px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+              <h2 style={{ fontFamily: 'Bebas Neue', fontSize: '24px', letterSpacing: '2px', color: 'var(--accent-gold)' }}>
+                ASSIGN PLAYER → {manualAssignTeam.name}
+              </h2>
+              <button className="btn btn-ghost" style={{ padding: '6px' }} onClick={() => setShowManualAssign(false)}><MdClose /></button>
+            </div>
+            <div className="form-group">
+              <label className="form-label">Select Player</label>
+              <select className="input" value={selectedPlayerId} onChange={e => setSelectedPlayerId(e.target.value)}>
+                <option value="">-- Select Player --</option>
+                {allPlayers.map(p => (
+                  <option key={p._id} value={p._id}>{p.name} ({p.role}) - Base: ₹{p.basePrice}L</option>
+                ))}
+              </select>
+            </div>
+            <div className="form-group">
+              <label className="form-label">Price (Lakhs)</label>
+              <input className="input" type="number" placeholder="e.g. 50" value={manualPrice} onChange={e => setManualPrice(e.target.value)} />
+            </div>
+            <div style={{ background: 'rgba(255,140,0,0.1)', border: '1px solid rgba(255,140,0,0.3)', borderRadius: '8px', padding: '10px', marginBottom: '16px' }}>
+              <p style={{ fontSize: '12px', color: '#ff8c00', fontFamily: 'Rajdhani' }}>
+                ⚠️ Yeh manual assignment hai — purse automatically deduct hoga.
+              </p>
+            </div>
+            <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
+              <button className="btn btn-ghost" onClick={() => setShowManualAssign(false)}>Cancel</button>
+              <button className="btn btn-primary" onClick={async () => {
+                if (!selectedPlayerId || !manualPrice) { toast.error('Player aur price select karo!'); return; }
+                try {
+                  await getApi().put('/teams/' + manualAssignTeam._id + '/manual-assign', {
+                    playerId: selectedPlayerId,
+                    price: Number(manualPrice)
+                  });
+                  toast.success('Player assigned! ✅');
+                  setShowManualAssign(false);
+                  setSelectedPlayerId('');
+                  setManualPrice('');
+                  fetchData();
+                } catch (err) { toast.error(err.response?.data?.message || 'Failed'); }
+              }}>Assign Player</button>
             </div>
           </div>
         </div>
