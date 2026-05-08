@@ -465,5 +465,27 @@ router.put('/recalculate/purse', protect, adminOnly, async (req, res) => {
     res.status(500).json({ success: false, message: err.message });
   }
 });
+// PUT /api/teams/:id/manual-assign
+router.put('/:id/manual-assign', protect, adminOnly, async (req, res) => {
+  try {
+    const { playerId, price } = req.body;
+    if (!playerId || !price) return res.status(400).json({ success: false, message: 'Player and price required' });
+    const team = await Team.findById(req.params.id);
+    if (!team) return res.status(404).json({ success: false, message: 'Team not found' });
+    if (price > team.purseRemaining) {
+      return res.status(400).json({ success: false, message: 'Insufficient purse! Available: Rs.' + team.purseRemaining + 'L' });
+    }
+    const player = await Player.findByIdAndUpdate(playerId, {
+      status: 'sold', soldPrice: price, soldTo: team._id,
+    }, { new: true });
+    if (!player) return res.status(404).json({ success: false, message: 'Player not found' });
+    team.players.push(playerId);
+    team.purseRemaining -= price;
+    await team.save();
+    res.json({ success: true, message: player.name + ' assigned!', player, team });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
 
 module.exports = router;
